@@ -44,9 +44,7 @@ internal static class DbusQtTypeHintResolver
         ImmutableArray<string> arguments,
         ImmutableDictionary<string, string> qtTypeHintMappings)
     {
-        if (string.Equals(typeName, "QList", StringComparison.Ordinal) ||
-            string.Equals(typeName, "QVector", StringComparison.Ordinal) ||
-            string.Equals(typeName, "QLinkedList", StringComparison.Ordinal))
+        if (IsSequenceTypeHint(typeName))
         {
             if (arguments.Length == 1 && TryResolveClrType(arguments[0], qtTypeHintMappings, out var elementType))
             {
@@ -56,7 +54,7 @@ internal static class DbusQtTypeHintResolver
             return string.Empty;
         }
 
-        if (string.Equals(typeName, "QSet", StringComparison.Ordinal))
+        if (IsSetTypeHint(typeName))
         {
             if (arguments.Length == 1 && TryResolveClrType(arguments[0], qtTypeHintMappings, out var elementType))
             {
@@ -66,8 +64,7 @@ internal static class DbusQtTypeHintResolver
             return string.Empty;
         }
 
-        if (string.Equals(typeName, "QMap", StringComparison.Ordinal) ||
-            string.Equals(typeName, "QHash", StringComparison.Ordinal))
+        if (IsDictionaryTypeHint(typeName))
         {
             if (arguments.Length == 2 &&
                 TryResolveClrType(arguments[0], qtTypeHintMappings, out var keyType) &&
@@ -79,7 +76,7 @@ internal static class DbusQtTypeHintResolver
             return string.Empty;
         }
 
-        if (string.Equals(typeName, "QPair", StringComparison.Ordinal))
+        if (IsPairTypeHint(typeName))
         {
             if (arguments.Length == 2 &&
                 TryResolveClrType(arguments[0], qtTypeHintMappings, out var leftType) &&
@@ -96,6 +93,33 @@ internal static class DbusQtTypeHintResolver
 
     private static string NormalizeHint(string qtTypeHint)
     {
+        var decoratedHint = StripCppDecorations(qtTypeHint);
+        if (TryParseGenericHint(decoratedHint, out var typeName, out var arguments))
+        {
+            var normalizedTypeName = NormalizeSimpleTypeName(typeName);
+            var builder = new StringBuilder(decoratedHint.Length);
+            builder.Append(normalizedTypeName);
+            builder.Append('<');
+
+            for (var index = 0; index < arguments.Length; index++)
+            {
+                if (index > 0)
+                {
+                    builder.Append(',');
+                }
+
+                builder.Append(NormalizeHint(arguments[index]));
+            }
+
+            builder.Append('>');
+            return builder.ToString();
+        }
+
+        return NormalizeSimpleTypeName(decoratedHint);
+    }
+
+    private static string NormalizeSimpleTypeName(string qtTypeHint)
+    {
         var builder = new StringBuilder(qtTypeHint.Length);
         foreach (var character in qtTypeHint)
         {
@@ -106,6 +130,106 @@ internal static class DbusQtTypeHintResolver
         }
 
         return builder.ToString().Trim();
+    }
+
+    private static string StripCppDecorations(string value)
+    {
+        var current = value.Trim();
+        while (!string.IsNullOrWhiteSpace(current))
+        {
+            var previous = current;
+            current = RemoveLeadingWord(current, "const");
+            current = RemoveLeadingWord(current, "volatile");
+            current = RemoveLeadingWord(current, "class");
+            current = RemoveLeadingWord(current, "struct");
+            current = RemoveTrailingWord(current, "const");
+            current = RemoveTrailingWord(current, "volatile");
+
+            while (current.EndsWith("&", StringComparison.Ordinal) ||
+                   current.EndsWith("*", StringComparison.Ordinal))
+            {
+                current = current.Substring(0, current.Length - 1).Trim();
+                current = RemoveTrailingWord(current, "const");
+                current = RemoveTrailingWord(current, "volatile");
+            }
+
+            if (string.Equals(previous, current, StringComparison.Ordinal))
+            {
+                return current;
+            }
+        }
+
+        return current;
+    }
+
+    private static string RemoveLeadingWord(string value, string word)
+    {
+        var trimmed = value.Trim();
+        if (!trimmed.StartsWith(word, StringComparison.Ordinal) ||
+            trimmed.Length == word.Length ||
+            IsIdentifierPart(trimmed[word.Length]))
+        {
+            return trimmed;
+        }
+
+        return trimmed.Substring(word.Length).Trim();
+    }
+
+    private static string RemoveTrailingWord(string value, string word)
+    {
+        var trimmed = value.Trim();
+        if (!trimmed.EndsWith(word, StringComparison.Ordinal) ||
+            trimmed.Length == word.Length)
+        {
+            return trimmed;
+        }
+
+        var wordStart = trimmed.Length - word.Length;
+        if (wordStart > 0 && IsIdentifierPart(trimmed[wordStart - 1]))
+        {
+            return trimmed;
+        }
+
+        return trimmed.Substring(0, wordStart).Trim();
+    }
+
+    private static bool IsIdentifierPart(char character)
+    {
+        return char.IsLetterOrDigit(character) || character == '_';
+    }
+
+    private static bool IsSequenceTypeHint(string typeName)
+    {
+        return string.Equals(typeName, "QList", StringComparison.Ordinal) ||
+               string.Equals(typeName, "QVector", StringComparison.Ordinal) ||
+               string.Equals(typeName, "QLinkedList", StringComparison.Ordinal) ||
+               string.Equals(typeName, "QQueue", StringComparison.Ordinal) ||
+               string.Equals(typeName, "QStack", StringComparison.Ordinal) ||
+               string.Equals(typeName, "QVarLengthArray", StringComparison.Ordinal) ||
+               string.Equals(typeName, "std::vector", StringComparison.Ordinal) ||
+               string.Equals(typeName, "std::list", StringComparison.Ordinal) ||
+               string.Equals(typeName, "std::deque", StringComparison.Ordinal);
+    }
+
+    private static bool IsSetTypeHint(string typeName)
+    {
+        return string.Equals(typeName, "QSet", StringComparison.Ordinal) ||
+               string.Equals(typeName, "std::set", StringComparison.Ordinal) ||
+               string.Equals(typeName, "std::unordered_set", StringComparison.Ordinal);
+    }
+
+    private static bool IsDictionaryTypeHint(string typeName)
+    {
+        return string.Equals(typeName, "QMap", StringComparison.Ordinal) ||
+               string.Equals(typeName, "QHash", StringComparison.Ordinal) ||
+               string.Equals(typeName, "std::map", StringComparison.Ordinal) ||
+               string.Equals(typeName, "std::unordered_map", StringComparison.Ordinal);
+    }
+
+    private static bool IsPairTypeHint(string typeName)
+    {
+        return string.Equals(typeName, "QPair", StringComparison.Ordinal) ||
+               string.Equals(typeName, "std::pair", StringComparison.Ordinal);
     }
 
     private static bool TryParseGenericHint(

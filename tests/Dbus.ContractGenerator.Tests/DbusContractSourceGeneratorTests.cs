@@ -362,6 +362,54 @@ public sealed partial class DbusContractSourceGeneratorTests
     }
 
     [Fact]
+    public void Generate_WithCppDecoratedQtTypeHints_ResolvesAliasesAndNestedContainers()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.CppQtHints.xml"] =
+                """
+                <node>
+                  <interface name="org.example.CppQtHints">
+                    <method name="Execute">
+                      <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="const QList&lt;const QString &amp;&gt; &amp;" />
+                      <annotation name="org.qtproject.QtDBus.QtTypeName.In1" value="unsigned int" />
+                      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="std::map&lt;QString, const QByteArray &amp;&gt;" />
+                      <arg direction="in" name="items" type="as" />
+                      <arg direction="in" name="flags" type="u" />
+                      <arg direction="out" name="payload" type="a{say}" />
+                    </method>
+                    <signal name="HandlePassed">
+                      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QDBusUnixFileDescriptor" />
+                      <arg name="handle" type="h" />
+                    </signal>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(
+            xmlFiles,
+            """
+            {
+              "schemaVersion": 1,
+              "strictConfiguration": true,
+              "generatedNamespace": "GeneratorHarness.Generated",
+              "qtTypeHintPolicy": {
+                "unknownHintBehavior": "error"
+              }
+            }
+            """);
+
+        AssertNoErrors(result.Diagnostics.Where(static item => item.Id is not "DBCG010" and not "DBCG011"));
+        Assert.DoesNotContain(result.Diagnostics, static diagnostic => diagnostic.Id is "DBCG012" or "DBCG013");
+        Assert.Contains(
+            "Task<System.Collections.Generic.IDictionary<string, byte[]>> ExecuteAsync(string[] items, uint flags);",
+            result.GeneratedSourceText,
+            StringComparison.Ordinal);
+        Assert.Contains("Action<CloseSafeHandle> handler", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generate_WithUnknownQtTypeHintAndWarnPolicy_ReportsWarning()
     {
         var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)

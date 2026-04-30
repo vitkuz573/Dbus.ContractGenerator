@@ -120,30 +120,39 @@ Top-level properties:
 Unknown member names report `DBCG006`.
 
 Intrinsic generic Qt hint resolution (no explicit mapping required):
-- `QList<T>`, `QVector<T>`, `QLinkedList<T>` -> `T[]`
-- `QSet<T>` -> `System.Collections.Generic.ISet<T>`
-- `QMap<K,V>`, `QHash<K,V>` -> `System.Collections.Generic.IDictionary<K, V>`
-- `QPair<A,B>` -> `(A, B)`
+- `const`, references, and pointers are stripped before resolving hints.
+- `QList<T>`, `QVector<T>`, `QLinkedList<T>`, `QQueue<T>`, `QStack<T>`, `std::vector<T>`, `std::list<T>` -> `T[]`
+- `QSet<T>`, `std::set<T>` -> `System.Collections.Generic.ISet<T>`
+- `QMap<K,V>`, `QHash<K,V>`, `std::map<K,V>` -> `System.Collections.Generic.IDictionary<K, V>`
+- `QPair<A,B>`, `std::pair<A,B>` -> `(A, B)`
 
 ## Default Qt Type Hint Mappings
 
 Built-in defaults:
 - `QVariant` -> `object`
 - `QString` -> `string`
+- `QStringView`, `QLatin1StringView`, `QUtf8StringView`, `QAnyStringView` -> `string`
 - `QStringList` -> `string[]`
 - `QByteArray` -> `byte[]`
+- `QByteArrayList` -> `byte[][]`
 - `QVariantList` -> `object[]`
 - `QVariantMap` -> `System.Collections.Generic.IDictionary<string, object>`
 - `QVariantHash` -> `System.Collections.Generic.IDictionary<string, object>`
+- `QDBusVariant` -> `object`
 - `QDBusObjectPath` -> `DbusObjectPath`
+- `QDBusSignature` -> `string`
+- `QDBusUnixFileDescriptor` -> `CloseSafeHandle`
 - `bool` -> `bool`
+- `uchar`, `quint8`, `uint8_t` -> `byte`
+- `qint8`, `int8_t` -> `sbyte`
 - `double` -> `double`
+- `qreal` -> `double`
 - `qint16` -> `short`
-- `quint16` -> `ushort`
+- `quint16`, `unsigned short`, `uint16_t` -> `ushort`
 - `qint32` -> `int`
-- `quint32` -> `uint`
-- `qint64` -> `long`
-- `quint64` -> `ulong`
+- `quint32`, `uint`, `unsigned int`, `uint32_t` -> `uint`
+- `qint64`, `qlonglong`, `long long`, `int64_t` -> `long`
+- `quint64`, `qulonglong`, `unsigned long long`, `uint64_t` -> `ulong`
 
 ## Merge and Compatibility Behavior
 
@@ -187,10 +196,11 @@ When the same D-Bus interface is discovered in multiple XML files:
 | Hint Pattern | Support | Result | Notes |
 |---|---|---|---|
 | Exact mapped hint (`QString`, `QVariantMap`, etc.) | Full | Uses `qtTypeHintMappings` CLR type | Includes built-in defaults and custom mappings. |
-| `QList<T>`, `QVector<T>`, `QLinkedList<T>` | Full | `T[]` | `T` resolved recursively through mapping/parser. |
-| `QSet<T>` | Full | `System.Collections.Generic.ISet<T>` | `T` resolved recursively. |
-| `QMap<K,V>`, `QHash<K,V>` | Full | `System.Collections.Generic.IDictionary<K,V>` | `K`, `V` resolved recursively. |
-| `QPair<A,B>` | Full | `(A, B)` | `A`, `B` resolved recursively. |
+| C++ decorated hints (`const T&`, `T*`) | Full | Normalized `T` mapping | Applies recursively inside generic hints. |
+| Qt/C++ sequence hints (`QList<T>`, `QVector<T>`, `std::vector<T>`, etc.) | Full | `T[]` | `T` resolved recursively through mapping/parser. |
+| Qt/C++ set hints (`QSet<T>`, `std::set<T>`, etc.) | Full | `System.Collections.Generic.ISet<T>` | `T` resolved recursively. |
+| Qt/C++ map hints (`QMap<K,V>`, `QHash<K,V>`, `std::map<K,V>`, etc.) | Full | `System.Collections.Generic.IDictionary<K,V>` | `K`, `V` resolved recursively. |
+| Qt/C++ pair hints (`QPair<A,B>`, `std::pair<A,B>`) | Full | `(A, B)` | `A`, `B` resolved recursively. |
 | Unknown hint + `unknownHintBehavior=allow` | Allowed | Falls back to signature-driven type | No diagnostic. |
 | Unknown hint + `unknownHintBehavior=warn` | Conditional | Falls back to signature-driven type | Reports `DBCG012`. |
 | Unknown hint + `unknownHintBehavior=error` | Conditional | Falls back to signature-driven type | Reports `DBCG013`. |
@@ -259,6 +269,7 @@ Sweep only:
 ```
 
 Sweep behavior notes:
+- The sweep combines live `busctl` introspection, installed introspection XML, and a synthetic rare-case corpus.
 - The generated temporary sweep configuration sets `mergePolicy` to `warn` to keep broad multi-service Linux sweeps compilable while still surfacing merge conflicts as diagnostics.
 - `DBUS_SWEEP_STRICT` controls `strictConfiguration` in the temporary sweep config.
 
@@ -279,6 +290,13 @@ Useful quality-gate environment variables:
 Useful sweep environment variables:
 - `DBUS_SWEEP_WORK_DIR`.
 - `DBUS_SWEEP_LIMIT_PER_BUS`.
+- `DBUS_SWEEP_TREE_PATH_LIMIT_PER_SERVICE`.
+- `DBUS_SWEEP_INTROSPECT_TIMEOUT_SECONDS`.
+- `DBUS_SWEEP_INCLUDE_STATIC_XML` (`true`/`false`).
+- `DBUS_SWEEP_STATIC_XML_LIMIT`.
+- `DBUS_SWEEP_STATIC_XML_ROOTS` (space-separated roots).
+- `DBUS_SWEEP_SYNTHETIC_RARE` (`true`/`false`).
+- `DBUS_SWEEP_SYNTHETIC_RARE_COUNT`.
 - `DBUS_SWEEP_STRICT`.
 - `DBUS_SWEEP_REPORT`.
 
