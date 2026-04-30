@@ -62,6 +62,8 @@ For each D-Bus interface, the generator emits:
 The generator applies:
 - Name sanitization and keyword escaping.
 - Deterministic ordering.
+- C# overload preservation for same-name methods/signals with distinct parameter types.
+- Case normalization for method directions and property access modes.
 - Merge semantics when an interface is defined in multiple files.
 
 ## Configuration Schema
@@ -118,6 +120,8 @@ Top-level properties:
 ```
 
 Unknown member names report `DBCG006`.
+
+`qtTypeHintMappings` keys are normalized like incoming Qt hints, so decorated keys such as `const TenantToken &` match decorated XML annotations.
 
 Intrinsic generic Qt hint resolution (no explicit mapping required):
 - `const`, references, and pointers are stripped before resolving hints.

@@ -38,13 +38,15 @@ internal static class DbusSourceEmitter
         var getAllAsyncMethodName = MakeUniqueIdentifier("GetAllAsync", usedInterfaceMemberNames, "GetAllAsync");
         var setAsyncMethodName = MakeUniqueIdentifier("SetAsync", usedInterfaceMemberNames, "SetAsync");
         var watchPropertiesAsyncMethodName = MakeUniqueIdentifier("WatchPropertiesAsync", usedInterfaceMemberNames, "WatchPropertiesAsync");
+        var usedParameterSignaturesByName = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 
         foreach (var method in model.Methods)
         {
-            var methodName = MakeUniqueIdentifier(
+            var methodName = ResolveOverloadableMethodName(
                 EnsureAsyncSuffix(BuildIdentifierSuffix(method.Name, "Method")),
+                BuildMethodParameterSignature(method, qtTypeHintMappings),
                 usedInterfaceMemberNames,
-                "MethodAsync");
+                usedParameterSignaturesByName);
             WriteMemberStabilityAttributes(builder, method.Annotations, "method", "    ");
             builder.Append("    ");
             builder.Append(FormatMethodSignature(method, methodName, qtTypeHintMappings));
@@ -53,10 +55,11 @@ internal static class DbusSourceEmitter
 
         foreach (var signal in model.Signals)
         {
-            var signalWatcherName = MakeUniqueIdentifier(
+            var signalWatcherName = ResolveOverloadableMethodName(
                 "Watch" + BuildIdentifierSuffix(signal.Name, "Signal") + "Async",
+                BuildSignalWatcherParameterSignature(signal, qtTypeHintMappings),
                 usedInterfaceMemberNames,
-                "WatchSignalAsync");
+                usedParameterSignaturesByName);
             WriteMemberStabilityAttributes(builder, signal.Annotations, "signal", "    ");
             builder.Append("    ");
             builder.Append(FormatSignalWatcherSignature(signal, signalWatcherName, qtTypeHintMappings));
@@ -259,6 +262,37 @@ internal static class DbusSourceEmitter
         builder.Append('"');
     }
 
+    private static string ResolveOverloadableMethodName(
+        string preferredName,
+        string parameterSignature,
+        ISet<string> usedMemberNames,
+        IDictionary<string, HashSet<string>> usedMethodParameterSignaturesByName)
+    {
+        var normalizedPreferredName = ToSafeIdentifier(preferredName, "MethodAsync");
+        if (!usedMemberNames.Contains(normalizedPreferredName))
+        {
+            usedMemberNames.Add(normalizedPreferredName);
+            usedMethodParameterSignaturesByName[normalizedPreferredName] = new HashSet<string>(StringComparer.Ordinal)
+            {
+                parameterSignature
+            };
+            return normalizedPreferredName;
+        }
+
+        if (usedMethodParameterSignaturesByName.TryGetValue(normalizedPreferredName, out var usedParameterSignatures) &&
+            usedParameterSignatures.Add(parameterSignature))
+        {
+            return normalizedPreferredName;
+        }
+
+        var uniqueName = MakeUniqueIdentifier(normalizedPreferredName, usedMemberNames, "MethodAsync");
+        usedMethodParameterSignaturesByName[uniqueName] = new HashSet<string>(StringComparer.Ordinal)
+        {
+            parameterSignature
+        };
+        return uniqueName;
+    }
+
     private static void WriteMemberStabilityAttributes(
         StringBuilder builder,
         DbusAnnotationSet annotations,
@@ -328,6 +362,19 @@ internal static class DbusSourceEmitter
         return builder.ToString();
     }
 
+    private static string BuildMethodParameterSignature(
+        DbusMethodModel method,
+        ImmutableDictionary<string, string> qtTypeHintMappings)
+    {
+        return string.Join(
+            ",",
+            method.InArguments.Select((argument, index) =>
+            {
+                method.InQtTypeHints.TryGetValue(index, out var qtTypeHint);
+                return FormatType(argument.Type, qtTypeHint, qtTypeHintMappings);
+            }));
+    }
+
     private static string FormatSignalWatcherSignature(
         DbusSignalModel signal,
         string methodName,
@@ -340,6 +387,13 @@ internal static class DbusSourceEmitter
         builder.Append(FormatSignalHandlerType(signal.Arguments, signal.QtTypeHints, qtTypeHintMappings));
         builder.Append(" handler, Action<Exception> onError = null)");
         return builder.ToString();
+    }
+
+    private static string BuildSignalWatcherParameterSignature(
+        DbusSignalModel signal,
+        ImmutableDictionary<string, string> qtTypeHintMappings)
+    {
+        return FormatSignalHandlerType(signal.Arguments, signal.QtTypeHints, qtTypeHintMappings) + ",Action<Exception>";
     }
 
     private static string FormatMethodReturnType(

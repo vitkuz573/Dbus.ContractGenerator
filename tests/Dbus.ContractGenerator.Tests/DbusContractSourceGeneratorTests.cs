@@ -206,6 +206,46 @@ public sealed partial class DbusContractSourceGeneratorTests
     }
 
     [Fact]
+    public void Generate_WithAccessCasingDifferences_DoesNotReportStrictAbiConflict()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.Access.v1.xml"] =
+                """
+                <node>
+                  <interface name="org.example.Access">
+                    <property name="State" type="s" access="ReadWrite"/>
+                  </interface>
+                </node>
+                """,
+            ["org.example.Access.v2.xml"] =
+                """
+                <node>
+                  <interface name="org.example.Access">
+                    <property name="State" type="s" access="readwrite"/>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(
+            xmlFiles,
+            """
+            {
+              "schemaVersion": 1,
+              "strictConfiguration": true,
+              "strictAbiCompatibility": true,
+              "generatedNamespace": "GeneratorHarness.Generated"
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static diagnostic => diagnostic.Id == "DBCG003");
+        AssertNoErrors(result.Diagnostics);
+        Assert.Contains("GetStateAsync", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("SetStateAsync", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generate_WithRecursiveNodes_CollectsObjectPaths()
     {
         var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -261,6 +301,69 @@ public sealed partial class DbusContractSourceGeneratorTests
         Assert.Contains("DefaultObjectPath { get; } = \"/org/example/\\\"root\\\\path\";", result.GeneratedSourceText, StringComparison.Ordinal);
         Assert.Contains("GetAsync<string>(\"Display\\\"\\\\Name\")", result.GeneratedSourceText, StringComparison.Ordinal);
         Assert.Contains("SetAsync(\"Display\\\"\\\\Name\", val)", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_WithExcessiveXmlNodeDepth_ReportsXmlDiagnostic()
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("<node>");
+        for (var index = 0; index < 514; index++)
+        {
+            builder.Append("  <node name=\"n");
+            builder.Append(index);
+            builder.AppendLine("\">");
+        }
+
+        builder.AppendLine("    <interface name=\"org.example.DeepXml\"><method name=\"Ping\" /></interface>");
+        for (var index = 0; index < 514; index++)
+        {
+            builder.AppendLine("  </node>");
+        }
+
+        builder.AppendLine("</node>");
+
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.DeepXml.xml"] = builder.ToString()
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        Assert.Contains(
+            result.Diagnostics,
+            static diagnostic =>
+                diagnostic.Id == "DBCG001" &&
+                diagnostic.Severity == DiagnosticSeverity.Error &&
+                diagnostic.GetMessage().Contains("node nesting depth", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Generate_WithDoctypeDeclaration_ParsesDocument()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.Doctype.xml"] =
+                """
+                <!DOCTYPE node [
+                  <!ELEMENT node (interface|node)*>
+                  <!ELEMENT interface (method|signal|property|annotation)*>
+                  <!ATTLIST interface name CDATA #REQUIRED>
+                  <!ELEMENT method (arg|annotation)*>
+                  <!ATTLIST method name CDATA #REQUIRED>
+                ]>
+                <node>
+                  <interface name="org.example.Doctype">
+                    <method name="Ping"/>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        AssertNoErrors(result.Diagnostics);
+        Assert.Contains("Task PingAsync();", result.GeneratedSourceText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -340,6 +443,44 @@ public sealed partial class DbusContractSourceGeneratorTests
         AssertNoErrors(result.Diagnostics.Where(static item => item.Id is not "DBCG010" and not "DBCG011"));
         Assert.Contains("Task ExecuteAsync(Guid token);", result.GeneratedSourceText, StringComparison.Ordinal);
         Assert.Contains("public IReadOnlyDictionary<string, object> Metadata { get; set; } = default!;", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_WithDecoratedCustomQtTypeHintMapping_NormalizesMappingKey()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.DecoratedCustomQtTypes.xml"] =
+                """
+                <node>
+                  <interface name="org.example.DecoratedCustomQtTypes">
+                    <method name="Execute">
+                      <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="const TenantToken &amp;" />
+                      <arg direction="in" name="token" type="s" />
+                    </method>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(
+            xmlFiles,
+            """
+            {
+              "schemaVersion": 1,
+              "strictConfiguration": true,
+              "generatedNamespace": "GeneratorHarness.Generated",
+              "qtTypeHintPolicy": {
+                "unknownHintBehavior": "error"
+              },
+              "qtTypeHintMappings": {
+                "const TenantToken &": "System.Guid"
+              }
+            }
+            """);
+
+        AssertNoErrors(result.Diagnostics);
+        Assert.Contains("Task ExecuteAsync(System.Guid token);", result.GeneratedSourceText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -660,6 +801,147 @@ public sealed partial class DbusContractSourceGeneratorTests
         AssertNoErrors(result.Diagnostics.Where(static item => item.Id is not "DBCG010" and not "DBCG011"));
         Assert.Contains("SetSecretAsync(this", result.GeneratedSourceText, StringComparison.Ordinal);
         Assert.DoesNotContain("GetSecretAsync(this", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_WithDirectionAndAccessCasing_NormalizesMetadata()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.Casing.xml"] =
+                """
+                <node>
+                  <interface name="org.example.Casing">
+                    <method name="Execute">
+                      <arg direction="In" name="value" type="s" />
+                      <arg direction="Out" name="result" type="u" />
+                    </method>
+                    <property name="State" type="s" access="ReadWrite"/>
+                    <signal name="Changed">
+                      <arg direction="Out" name="payload" type="s" />
+                    </signal>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        AssertNoErrors(result.Diagnostics);
+        Assert.Contains("Task<uint> ExecuteAsync(string value);", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("GetStateAsync", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("SetStateAsync", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("Action<string> handler", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_WithMethodInputOverloads_PreservesCSharpOverloads()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.Overloads.xml"] =
+                """
+                <node>
+                  <interface name="org.example.Overloads">
+                    <method name="Execute">
+                      <arg direction="in" name="value" type="s" />
+                    </method>
+                    <method name="Execute">
+                      <arg direction="in" name="value" type="u" />
+                    </method>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        AssertNoErrors(result.Diagnostics);
+        Assert.Contains("Task ExecuteAsync(string value);", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("Task ExecuteAsync(uint value);", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExecuteAsync2", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_WithDuplicateCSharpMethodInputSignature_UsesUniqueMethodName()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.DuplicateMethodSignature.xml"] =
+                """
+                <node>
+                  <interface name="org.example.DuplicateMethodSignature">
+                    <method name="Execute">
+                      <arg direction="in" name="value" type="s" />
+                    </method>
+                    <method name="Execute">
+                      <arg direction="in" name="other" type="s" />
+                    </method>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        AssertNoErrors(result.Diagnostics);
+        Assert.Contains("Task ExecuteAsync(string value);", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("Task ExecuteAsync2(string other);", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_WithSignalPayloadOverloads_PreservesCSharpOverloads()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.SignalOverloads.xml"] =
+                """
+                <node>
+                  <interface name="org.example.SignalOverloads">
+                    <signal name="Changed">
+                      <arg name="value" type="s" />
+                    </signal>
+                    <signal name="Changed">
+                      <arg name="value" type="u" />
+                    </signal>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        AssertNoErrors(result.Diagnostics);
+        Assert.Contains("Task<IDisposable> WatchChangedAsync(Action<string> handler, Action<Exception> onError = null);", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("Task<IDisposable> WatchChangedAsync(Action<uint> handler, Action<Exception> onError = null);", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.DoesNotContain("WatchChangedAsync2", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_WithDuplicateSignalHandlerSignature_UsesUniqueWatcherName()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.DuplicateSignalSignature.xml"] =
+                """
+                <node>
+                  <interface name="org.example.DuplicateSignalSignature">
+                    <signal name="Changed">
+                      <arg name="value" type="s" />
+                    </signal>
+                    <signal name="Changed">
+                      <arg name="other" type="s" />
+                    </signal>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        AssertNoErrors(result.Diagnostics);
+        Assert.Contains("WatchChangedAsync(Action<string> handler", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("WatchChangedAsync2(Action<string> handler", result.GeneratedSourceText, StringComparison.Ordinal);
     }
 
     [Fact]

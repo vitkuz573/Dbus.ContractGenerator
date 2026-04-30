@@ -1,5 +1,6 @@
 
 using System.Collections.Immutable;
+using System.IO;
 using System.Text;
 using System.Xml;
 using System.Xml.Linq;
@@ -12,6 +13,9 @@ namespace Dbus.ContractGenerator;
 
 internal static class DbusXmlContractParser
 {
+    private const int MaxXmlNodeNestingDepth = 512;
+    private const long MaxXmlCharactersFromEntities = 1024 * 1024;
+
     private static readonly ImmutableHashSet<string> KnownBooleanAnnotations =
     [
         DbusDeprecatedAnnotation,
@@ -33,7 +37,15 @@ internal static class DbusXmlContractParser
         XDocument document;
         try
         {
-            document = XDocument.Parse(file.Content, LoadOptions.SetLineInfo);
+            var settings = new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Parse,
+                MaxCharactersFromEntities = MaxXmlCharactersFromEntities,
+                XmlResolver = null
+            };
+            using var stringReader = new StringReader(file.Content);
+            using var xmlReader = XmlReader.Create(stringReader, settings);
+            document = XDocument.Load(xmlReader, LoadOptions.SetLineInfo);
         }
         catch (Exception ex)
         {
@@ -53,7 +65,7 @@ internal static class DbusXmlContractParser
         var sourceText = SourceText.From(file.Content, Encoding.UTF8);
         var interfaces = new List<DbusInterfaceModel>();
         var rootPath = NormalizeObjectPath(rootNode.Attribute("name")?.Value);
-        ParseNodeInterfaces(context, file.Path, sourceText, rootNode, rootPath, configuration, interfaces);
+        ParseNodeInterfaces(context, file.Path, sourceText, rootNode, rootPath, configuration, interfaces, depth: 0);
 
         return interfaces.ToImmutableArray();
     }
@@ -65,7 +77,8 @@ internal static class DbusXmlContractParser
         XElement nodeElement,
         string objectPath,
         GeneratorConfiguration configuration,
-        IList<DbusInterfaceModel> output)
+        IList<DbusInterfaceModel> output,
+        int depth)
     {
         foreach (var interfaceElement in nodeElement.Elements().Where(static element => element.Name.LocalName == "interface"))
         {
@@ -78,9 +91,21 @@ internal static class DbusXmlContractParser
 
         foreach (var childNodeElement in nodeElement.Elements().Where(static element => element.Name.LocalName == "node"))
         {
+            var childDepth = depth + 1;
+            if (childDepth > MaxXmlNodeNestingDepth)
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        InvalidXmlDocument,
+                        CreateXmlLocation(sourcePath, sourceText, childNodeElement),
+                        sourcePath,
+                        $"XML node nesting depth exceeds supported limit of {MaxXmlNodeNestingDepth}."));
+                continue;
+            }
+
             var childNodeName = childNodeElement.Attribute("name")?.Value;
             var childObjectPath = CombineObjectPath(objectPath, childNodeName);
-            ParseNodeInterfaces(context, sourcePath, sourceText, childNodeElement, childObjectPath, configuration, output);
+            ParseNodeInterfaces(context, sourcePath, sourceText, childNodeElement, childObjectPath, configuration, output, childDepth);
         }
     }
 
@@ -242,8 +267,15 @@ internal static class DbusXmlContractParser
                     direction = "in";
                 }
 
-                if (!string.Equals(direction, "in", StringComparison.Ordinal) &&
-                    !string.Equals(direction, "out", StringComparison.Ordinal))
+                if (string.Equals(direction, "in", StringComparison.OrdinalIgnoreCase))
+                {
+                    direction = "in";
+                }
+                else if (string.Equals(direction, "out", StringComparison.OrdinalIgnoreCase))
+                {
+                    direction = "out";
+                }
+                else
                 {
                     ReportSemanticDiagnostic(
                         context,
@@ -452,9 +484,19 @@ internal static class DbusXmlContractParser
                 access = "read";
             }
 
-            if (!string.Equals(access, "read", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(access, "write", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(access, "readwrite", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(access, "read", StringComparison.OrdinalIgnoreCase))
+            {
+                access = "read";
+            }
+            else if (string.Equals(access, "write", StringComparison.OrdinalIgnoreCase))
+            {
+                access = "write";
+            }
+            else if (string.Equals(access, "readwrite", StringComparison.OrdinalIgnoreCase))
+            {
+                access = "readwrite";
+            }
+            else
             {
                 ReportSemanticDiagnostic(
                     context,
@@ -560,7 +602,7 @@ internal static class DbusXmlContractParser
             foreach (var argumentElement in signalElement.Elements().Where(static element => element.Name.LocalName == "arg"))
             {
                 var direction = argumentElement.Attribute("direction")?.Value?.Trim();
-                if (!string.IsNullOrWhiteSpace(direction) && !string.Equals(direction, "out", StringComparison.Ordinal))
+                if (!string.IsNullOrWhiteSpace(direction) && !string.Equals(direction, "out", StringComparison.OrdinalIgnoreCase))
                 {
                     ReportSemanticDiagnostic(
                         context,

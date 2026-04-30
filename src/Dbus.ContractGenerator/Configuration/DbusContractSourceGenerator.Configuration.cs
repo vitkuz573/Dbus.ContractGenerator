@@ -568,7 +568,7 @@ internal static class DbusGeneratorConfigurationReader
         var builder = fallbackMappings.ToBuilder();
         foreach (var mappingProperty in mappingsProperty.EnumerateObject())
         {
-            var hintName = mappingProperty.Name.Trim();
+            var hintName = DbusQtTypeHintResolver.NormalizeHintName(mappingProperty.Name);
             if (string.IsNullOrWhiteSpace(hintName))
             {
                 context.ReportDiagnostic(

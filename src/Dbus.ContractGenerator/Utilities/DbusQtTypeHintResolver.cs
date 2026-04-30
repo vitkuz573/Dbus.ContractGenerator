@@ -23,7 +23,7 @@ internal static class DbusQtTypeHintResolver
             return false;
         }
 
-        var normalizedHint = NormalizeHint(qtTypeHint!);
+        var normalizedHint = NormalizeHintName(qtTypeHint!);
         if (qtTypeHintMappings.TryGetValue(normalizedHint, out clrType!) && !string.IsNullOrWhiteSpace(clrType))
         {
             return true;
@@ -91,7 +91,7 @@ internal static class DbusQtTypeHintResolver
         return string.Empty;
     }
 
-    private static string NormalizeHint(string qtTypeHint)
+    internal static string NormalizeHintName(string qtTypeHint)
     {
         var decoratedHint = StripCppDecorations(qtTypeHint);
         if (TryParseGenericHint(decoratedHint, out var typeName, out var arguments))
@@ -108,7 +108,7 @@ internal static class DbusQtTypeHintResolver
                     builder.Append(',');
                 }
 
-                builder.Append(NormalizeHint(arguments[index]));
+                builder.Append(NormalizeHintName(arguments[index]));
             }
 
             builder.Append('>');
