@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Dbus.ContractGenerator/Dbus.ContractGenerator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Dbus.ContractGenerator.Tests/Dbus.ContractGenerator.Tests.csproj" />
+  </Folder>
+</Solution>

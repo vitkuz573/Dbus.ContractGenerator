@@ -1,0 +1,10 @@
+<node name="/root/path">
+  <interface name="org.example.Corpus">
+    <method name="Ping" />
+  </interface>
+  <node name="inner">
+    <interface name="org.example.Corpus">
+      <method name="Ping" />
+    </interface>
+  </node>
+</node>

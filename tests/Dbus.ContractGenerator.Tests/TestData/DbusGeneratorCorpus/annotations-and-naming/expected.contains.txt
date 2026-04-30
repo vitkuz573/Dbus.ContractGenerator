@@ -1,0 +1,4 @@
+public interface DbIAnnotatedContract : IDbusObject
+[Obsolete("D-Bus method is marked as deprecated.")]
+Task ExecuteAsync(ulong target);
+public string[] Items { get; set; } = default!;

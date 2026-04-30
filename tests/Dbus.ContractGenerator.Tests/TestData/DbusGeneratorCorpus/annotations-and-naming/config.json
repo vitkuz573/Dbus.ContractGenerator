@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "strictConfiguration": true,
+  "generatedNamespace": "GeneratorHarness.Generated",
+  "preferQtTypeHints": true,
+  "naming": {
+    "interfacePrefix": "Db",
+    "interfaceSuffix": "Contract",
+    "collisionPolicy": "hash",
+    "hashLength": 8
+  }
+}

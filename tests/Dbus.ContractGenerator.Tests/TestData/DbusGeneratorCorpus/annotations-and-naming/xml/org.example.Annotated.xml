@@ -1,0 +1,13 @@
+<node>
+  <interface name="org.example.Annotated">
+    <method name="Execute">
+      <annotation name="org.freedesktop.DBus.Method.NoReply" value="true" />
+      <annotation name="org.freedesktop.DBus.Deprecated" value="true" />
+      <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="quint64" />
+      <arg direction="in" name="target" type="u" />
+    </method>
+    <property name="Items" type="as" access="read">
+      <annotation name="org.qtproject.QtDBus.QtTypeName" value="QStringList" />
+    </property>
+  </interface>
+</node>

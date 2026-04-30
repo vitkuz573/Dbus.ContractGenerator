@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "strictConfiguration": true,
+  "generatedNamespace": "GeneratorHarness.Generated",
+  "mergePolicy": "merge-union"
+}

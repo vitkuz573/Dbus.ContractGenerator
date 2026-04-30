@@ -1,0 +1,4 @@
+public interface ICorpus : IDbusObject
+public static string[] KnownObjectPaths { get; } = new[] {
+"/root/path"
+"/root/path/inner"
