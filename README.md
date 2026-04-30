@@ -155,6 +155,56 @@ When the same D-Bus interface is discovered in multiple XML files:
 - `mergePolicy=merge-prefer-first` and `mergePolicy=merge-union`: merge deterministically.
 - `mergePolicy=merge-union` with `strictConfiguration=true`: incompatible unions can escalate to `DBCG003`.
 
+## Compatibility Matrix
+
+### D-Bus Signature Support
+
+| Category | Signature(s) | Support | Generated CLR Type | Notes |
+|---|---|---|---|---|
+| Primitive | `y` | Full | `byte` |  |
+| Primitive | `b` | Full | `bool` |  |
+| Primitive | `n` | Full | `short` |  |
+| Primitive | `q` | Full | `ushort` |  |
+| Primitive | `i` | Full | `int` |  |
+| Primitive | `u` | Full | `uint` |  |
+| Primitive | `x` | Full | `long` |  |
+| Primitive | `t` | Full | `ulong` |  |
+| Primitive | `d` | Full | `double` |  |
+| Primitive | `s` | Full | `string` |  |
+| Primitive | `o` | Full | `DbusObjectPath` |  |
+| Primitive | `g` | Full | `string` |  |
+| Primitive | `h` | Full | `CloseSafeHandle` |  |
+| Primitive | `v` | Full | `object` |  |
+| Array | `aT` | Full | `T[]` | `T` must be supported type. |
+| Dictionary | `a{KV}` | Full | `IDictionary<K,V>` | `K`, `V` must be supported types. |
+| Struct | `(T1...Tn)` (`n>=2`) | Full | `(T1, ..., Tn)` | Named tuple elements generated deterministically. |
+| Struct | `(T)` (`n=1`) | Full | `System.ValueTuple<T>` | Explicit single-element tuple handling. |
+| Struct | `()` (`n=0`) | Full | `System.ValueTuple` |  |
+| Unsupported token | any other token | Rejected | N/A | Reports `DBCG002`. |
+
+### Qt Type Hint Compatibility
+
+| Hint Pattern | Support | Result | Notes |
+|---|---|---|---|
+| Exact mapped hint (`QString`, `QVariantMap`, etc.) | Full | Uses `qtTypeHintMappings` CLR type | Includes built-in defaults and custom mappings. |
+| `QList<T>`, `QVector<T>`, `QLinkedList<T>` | Full | `T[]` | `T` resolved recursively through mapping/parser. |
+| `QSet<T>` | Full | `System.Collections.Generic.ISet<T>` | `T` resolved recursively. |
+| `QMap<K,V>`, `QHash<K,V>` | Full | `System.Collections.Generic.IDictionary<K,V>` | `K`, `V` resolved recursively. |
+| `QPair<A,B>` | Full | `(A, B)` | `A`, `B` resolved recursively. |
+| Unknown hint + `unknownHintBehavior=allow` | Allowed | Falls back to signature-driven type | No diagnostic. |
+| Unknown hint + `unknownHintBehavior=warn` | Conditional | Falls back to signature-driven type | Reports `DBCG012`. |
+| Unknown hint + `unknownHintBehavior=error` | Conditional | Falls back to signature-driven type | Reports `DBCG013`. |
+
+### Merge/Conflict Compatibility
+
+| Mode | Conflict Handling | Diagnostic Behavior | Build Impact |
+|---|---|---|---|
+| `strictAbiCompatibility=true` | No merge | `DBCG003` | Error |
+| `strictAbiCompatibility=false`, `mergePolicy=fail` | No merge | `DBCG003` | Error |
+| `strictAbiCompatibility=false`, `mergePolicy=warn` | Deterministic merge | `DBCG009` | Warning |
+| `strictAbiCompatibility=false`, `mergePolicy=merge-prefer-first` | Deterministic merge | None by default | Compiles |
+| `strictAbiCompatibility=false`, `mergePolicy=merge-union` | Deterministic merge | Optional `DBCG003` in strict config edge cases | Usually compiles |
+
 ## Diagnostics
 
 | ID | Severity | Meaning |
