@@ -68,10 +68,13 @@ internal static class DbusGeneratorConstants
     internal static readonly ImmutableDictionary<string, string> DefaultQtTypeHintMappings =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["QVariant"] = "object",
             ["QString"] = "string",
             ["QStringList"] = "string[]",
             ["QByteArray"] = "byte[]",
+            ["QVariantList"] = "object[]",
             ["QVariantMap"] = "System.Collections.Generic.IDictionary<string, object>",
+            ["QVariantHash"] = "System.Collections.Generic.IDictionary<string, object>",
             ["QDBusObjectPath"] = "DbusObjectPath",
             ["bool"] = "bool",
             ["double"] = "double",

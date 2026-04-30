@@ -90,6 +90,7 @@ cat > "$PROJECT_DIR/Dbus/dbus-contract-generator.json" <<EOF
 {
   "schemaVersion": 1,
   "strictConfiguration": $STRICT_CONFIGURATION,
+  "mergePolicy": "warn",
   "generatedNamespace": "DbusSweep.Generated"
 }
 EOF

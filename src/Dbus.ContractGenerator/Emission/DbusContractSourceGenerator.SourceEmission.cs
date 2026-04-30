@@ -237,6 +237,7 @@ internal static class DbusSourceEmitter
         ImmutableDictionary<string, string> qtTypeHintMappings)
     {
         var builder = new StringBuilder();
+        var usedArgumentNames = new HashSet<string>(StringComparer.Ordinal);
         builder.Append(FormatMethodReturnType(method, qtTypeHintMappings));
         builder.Append(' ');
         builder.Append(EscapeIdentifier(methodName));
@@ -253,7 +254,11 @@ internal static class DbusSourceEmitter
             method.InQtTypeHints.TryGetValue(index, out var qtTypeHint);
             builder.Append(FormatType(argument.Type, qtTypeHint, qtTypeHintMappings));
             builder.Append(' ');
-            builder.Append(EscapeIdentifier(ToSafeIdentifier(argument.Name, $"arg{index}")));
+            var argumentName = MakeUniqueIdentifier(
+                ToSafeIdentifier(argument.Name, $"arg{index}"),
+                usedArgumentNames,
+                $"arg{index}");
+            builder.Append(EscapeIdentifier(argumentName));
         }
 
         builder.Append(')');
@@ -323,6 +328,7 @@ internal static class DbusSourceEmitter
         ImmutableDictionary<string, string> qtTypeHintMappings)
     {
         var builder = new StringBuilder();
+        var usedTupleNames = new HashSet<string>(StringComparer.Ordinal);
         builder.Append('(');
 
         for (var index = 0; index < arguments.Length; index++)
@@ -336,7 +342,11 @@ internal static class DbusSourceEmitter
             qtTypeHints.TryGetValue(index, out var qtTypeHint);
             builder.Append(FormatType(argument.Type, qtTypeHint, qtTypeHintMappings));
             builder.Append(' ');
-            builder.Append(EscapeIdentifier(ToCamelCaseIdentifier(argument.Name, $"item{index + 1}")));
+            var tupleElementName = MakeUniqueIdentifier(
+                ToCamelCaseIdentifier(argument.Name, $"item{index + 1}"),
+                usedTupleNames,
+                $"item{index + 1}");
+            builder.Append(EscapeIdentifier(tupleElementName));
         }
 
         builder.Append(')');
@@ -383,6 +393,16 @@ internal static class DbusSourceEmitter
 
             case StructDbusType structType:
             {
+                if (structType.Elements.Length == 0)
+                {
+                    return "System.ValueTuple";
+                }
+
+                if (structType.Elements.Length == 1)
+                {
+                    return $"System.ValueTuple<{FormatType(structType.Elements[0], null, qtTypeHintMappings)}>";
+                }
+
                 var builder = new StringBuilder();
                 builder.Append('(');
                 for (var index = 0; index < structType.Elements.Length; index++)
@@ -409,19 +429,6 @@ internal static class DbusSourceEmitter
         ImmutableDictionary<string, string> qtTypeHintMappings,
         out string clrType)
     {
-        if (string.IsNullOrWhiteSpace(qtTypeHint))
-        {
-            clrType = string.Empty;
-            return false;
-        }
-
-        var normalizedHint = qtTypeHint!.Trim();
-        if (!qtTypeHintMappings.TryGetValue(normalizedHint, out clrType!))
-        {
-            clrType = string.Empty;
-            return false;
-        }
-
-        return !string.IsNullOrWhiteSpace(clrType);
+        return DbusQtTypeHintResolver.TryResolveClrType(qtTypeHint, qtTypeHintMappings, out clrType);
     }
 }

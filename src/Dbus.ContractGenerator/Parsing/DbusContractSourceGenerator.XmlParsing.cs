@@ -931,7 +931,7 @@ internal static class DbusXmlContractParser
             return false;
         }
 
-        if (configuration.QtTypeHintMappings.ContainsKey(normalizedHint))
+        if (DbusQtTypeHintResolver.CanResolveHint(normalizedHint, configuration.QtTypeHintMappings))
         {
             return true;
         }

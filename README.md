@@ -119,13 +119,22 @@ Top-level properties:
 
 Unknown member names report `DBCG006`.
 
+Intrinsic generic Qt hint resolution (no explicit mapping required):
+- `QList<T>`, `QVector<T>`, `QLinkedList<T>` -> `T[]`
+- `QSet<T>` -> `System.Collections.Generic.ISet<T>`
+- `QMap<K,V>`, `QHash<K,V>` -> `System.Collections.Generic.IDictionary<K, V>`
+- `QPair<A,B>` -> `(A, B)`
+
 ## Default Qt Type Hint Mappings
 
 Built-in defaults:
+- `QVariant` -> `object`
 - `QString` -> `string`
 - `QStringList` -> `string[]`
 - `QByteArray` -> `byte[]`
+- `QVariantList` -> `object[]`
 - `QVariantMap` -> `System.Collections.Generic.IDictionary<string, object>`
+- `QVariantHash` -> `System.Collections.Generic.IDictionary<string, object>`
 - `QDBusObjectPath` -> `DbusObjectPath`
 - `bool` -> `bool`
 - `double` -> `double`
@@ -198,6 +207,10 @@ Sweep only:
 ```bash
 ./scripts/dbus-generator-sweep.sh
 ```
+
+Sweep behavior notes:
+- The generated temporary sweep configuration sets `mergePolicy` to `warn` to keep broad multi-service Linux sweeps compilable while still surfacing merge conflicts as diagnostics.
+- `DBUS_SWEEP_STRICT` controls `strictConfiguration` in the temporary sweep config.
 
 Useful quality-gate environment variables:
 - `DBUS_QUALITY_GATE_PROFILE` (`ci` or `nightly`).

@@ -319,6 +319,49 @@ public sealed partial class DbusContractSourceGeneratorTests
     }
 
     [Fact]
+    public void Generate_WithGenericQtTypeHints_ResolvesWithoutExplicitMappings()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.GenericQtHints.xml"] =
+                """
+                <node>
+                  <interface name="org.example.GenericQtHints">
+                    <method name="Execute">
+                      <annotation name="org.qtproject.QtDBus.QtTypeName.In0" value="QList&lt;QString&gt;" />
+                      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QPair&lt;quint32,QString&gt;" />
+                      <arg direction="in" name="items" type="as" />
+                      <arg direction="out" name="result" type="(us)" />
+                    </method>
+                    <signal name="Updated">
+                      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QMap&lt;QString,QByteArray&gt;" />
+                      <arg name="payload" type="a{sv}" />
+                    </signal>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(
+            xmlFiles,
+            """
+            {
+              "schemaVersion": 1,
+              "strictConfiguration": true,
+              "generatedNamespace": "GeneratorHarness.Generated",
+              "qtTypeHintPolicy": {
+                "unknownHintBehavior": "error"
+              }
+            }
+            """);
+
+        AssertNoErrors(result.Diagnostics.Where(static item => item.Id is not "DBCG010" and not "DBCG011"));
+        Assert.DoesNotContain(result.Diagnostics, static diagnostic => diagnostic.Id is "DBCG012" or "DBCG013");
+        Assert.Contains("Task<(uint, string)> ExecuteAsync(string[] items);", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("Action<System.Collections.Generic.IDictionary<string, byte[]>> handler", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generate_WithUnknownQtTypeHintAndWarnPolicy_ReportsWarning()
     {
         var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -545,6 +588,77 @@ public sealed partial class DbusContractSourceGeneratorTests
         AssertNoErrors(result.Diagnostics.Where(static item => item.Id is not "DBCG010" and not "DBCG011"));
         Assert.Contains("SetSecretAsync(this", result.GeneratedSourceText, StringComparison.Ordinal);
         Assert.DoesNotContain("GetSecretAsync(this", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_WithDuplicateMethodArgumentNames_ProducesUniqueParameterNames()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.DuplicateArgs.xml"] =
+                """
+                <node>
+                  <interface name="org.example.DuplicateArgs">
+                    <method name="Mix">
+                      <arg direction="in" name="value" type="s" />
+                      <arg direction="in" name="value" type="u" />
+                    </method>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        AssertNoErrors(result.Diagnostics.Where(static item => item.Id is not "DBCG010" and not "DBCG011"));
+        Assert.Contains("Task MixAsync(string value, uint value2);", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_WithDuplicateTupleElementNames_ProducesUniqueTupleNames()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.TupleArgs.xml"] =
+                """
+                <node>
+                  <interface name="org.example.TupleArgs">
+                    <method name="GetPair">
+                      <arg direction="out" name="item" type="s" />
+                      <arg direction="out" name="item" type="u" />
+                    </method>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        AssertNoErrors(result.Diagnostics.Where(static item => item.Id is not "DBCG010" and not "DBCG011"));
+        Assert.Contains("Task<(string item, uint item2)> GetPairAsync();", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_WithSingleElementStructType_UsesValueTupleType()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.StructOne.xml"] =
+                """
+                <node>
+                  <interface name="org.example.StructOne">
+                    <method name="Echo">
+                      <arg direction="in" name="value" type="(s)" />
+                    </method>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        AssertNoErrors(result.Diagnostics.Where(static item => item.Id is not "DBCG010" and not "DBCG011"));
+        Assert.Contains("Task EchoAsync(System.ValueTuple<string> value);", result.GeneratedSourceText, StringComparison.Ordinal);
     }
 
     [Theory]
