@@ -1,12 +1,13 @@
 
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using static Dbus.ContractGenerator.DbusGeneratorConstants;
 
 namespace Dbus.ContractGenerator;
 
-public sealed partial class DbusContractSourceGenerator
+internal static class DbusGeneratorValidation
 {
-    private static void ValidateConfiguredInterfaces(
+    internal static void ValidateConfiguredInterfaces(
         SourceProductionContext context,
         GeneratorConfiguration configuration,
         ImmutableHashSet<string> discoveredInterfaceNames)
@@ -61,7 +62,7 @@ public sealed partial class DbusContractSourceGenerator
         }
     }
 
-    private static void ValidateTypeNameCollisions(
+    internal static void ValidateTypeNameCollisions(
         SourceProductionContext context,
         string configurationPath,
         IEnumerable<DbusInterfaceModel> interfaceModels)
@@ -123,7 +124,7 @@ public sealed partial class DbusContractSourceGenerator
                 $"Generated {artifactKind} type '{typeName}' conflicts between interfaces '{existingInterfaceName}' and '{interfaceName}'."));
     }
 
-    private static bool IsValidNamespace(string namespaceValue)
+    internal static bool IsValidNamespace(string namespaceValue)
     {
         var rawSegments = namespaceValue.Split(
             ['.'],
@@ -145,7 +146,7 @@ public sealed partial class DbusContractSourceGenerator
         return true;
     }
 
-    private static bool IsValidIdentifier(string value)
+    internal static bool IsValidIdentifier(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {

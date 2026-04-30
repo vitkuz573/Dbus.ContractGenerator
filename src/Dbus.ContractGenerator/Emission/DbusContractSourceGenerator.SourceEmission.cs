@@ -1,12 +1,14 @@
 
 using System.Collections.Immutable;
 using System.Text;
+using static Dbus.ContractGenerator.DbusGeneratorConstants;
+using static Dbus.ContractGenerator.DbusGeneratorNaming;
 
 namespace Dbus.ContractGenerator;
 
-public sealed partial class DbusContractSourceGenerator
+internal static class DbusSourceEmitter
 {
-    private static string BuildSource(DbusInterfaceModel model, GeneratorConfiguration configuration)
+    internal static string BuildSource(DbusInterfaceModel model, GeneratorConfiguration configuration)
     {
         var generatedNamespace = configuration.GeneratedNamespace;
         var qtTypeHintMappings = configuration.QtTypeHintMappings;

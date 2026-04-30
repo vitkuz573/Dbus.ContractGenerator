@@ -3,31 +3,33 @@ using System.Collections.Immutable;
 
 namespace Dbus.ContractGenerator;
 
-public sealed partial class DbusContractSourceGenerator
+internal static class DbusSignatureParser
 {
-    private sealed class DbusSignatureParser
+    internal static DbusType ParseType(string signature)
+    {
+        var parser = new Parser(signature);
+        var parsed = parser.ParseSingleType();
+        if (!parser.IsAtEnd())
+        {
+            throw new DbusSignatureParseException(signature, $"Unexpected trailing characters at position {parser.Position}.");
+        }
+
+        return parsed;
+    }
+
+    private sealed class Parser
     {
         private readonly string signature;
         private int position;
 
-        private DbusSignatureParser(string signature)
+        internal int Position => position;
+
+        internal Parser(string signature)
         {
             this.signature = signature;
         }
 
-        public static DbusType ParseType(string signature)
-        {
-            var parser = new DbusSignatureParser(signature);
-            var parsed = parser.ParseSingleType();
-            if (!parser.IsAtEnd())
-            {
-                throw new DbusSignatureParseException(signature, $"Unexpected trailing characters at position {parser.position}.");
-            }
-
-            return parsed;
-        }
-
-        private DbusType ParseSingleType()
+        internal DbusType ParseSingleType()
         {
             if (IsAtEnd())
             {
@@ -104,7 +106,7 @@ public sealed partial class DbusContractSourceGenerator
             position++;
         }
 
-        private bool IsAtEnd()
+        internal bool IsAtEnd()
         {
             return position >= signature.Length;
         }

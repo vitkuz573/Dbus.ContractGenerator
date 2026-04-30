@@ -3,9 +3,9 @@ using System.Collections.Immutable;
 
 namespace Dbus.ContractGenerator;
 
-public sealed partial class DbusContractSourceGenerator
+internal static class DbusInterfaceMergeEngine
 {
-    private readonly struct InterfaceMergeResult(
+    internal readonly struct InterfaceMergeResult(
         DbusInterfaceModel mergedInterface,
         bool hasIncompatibleMembers,
         bool reportAsWarning,
@@ -23,7 +23,7 @@ public sealed partial class DbusContractSourceGenerator
         public string PolicyName { get; } = policyName;
     }
 
-    private static InterfaceMergeResult MergeInterfaceDefinitions(
+    internal static InterfaceMergeResult MergeInterfaceDefinitions(
         DbusInterfaceModel primary,
         DbusInterfaceModel secondary,
         InterfaceMergePolicy mergePolicy)
@@ -50,7 +50,7 @@ public sealed partial class DbusContractSourceGenerator
             mergedMethods,
             mergedProperties,
             mergedSignals,
-            BuildInterfaceFingerprint(primary.InterfaceName, mergedMethods, mergedProperties, mergedSignals));
+            DbusXmlContractParser.BuildInterfaceFingerprint(primary.InterfaceName, mergedMethods, mergedProperties, mergedSignals));
 
         return mergePolicy switch
         {

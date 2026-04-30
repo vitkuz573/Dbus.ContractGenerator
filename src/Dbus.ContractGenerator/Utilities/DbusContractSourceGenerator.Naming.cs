@@ -4,9 +4,9 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace Dbus.ContractGenerator;
 
-public sealed partial class DbusContractSourceGenerator
+internal static class DbusGeneratorNaming
 {
-    private static string ToPascalCase(string value)
+    internal static string ToPascalCase(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -30,7 +30,7 @@ public sealed partial class DbusContractSourceGenerator
         return builder.ToString();
     }
 
-    private static string ToCamelCaseIdentifier(string value, string fallback)
+    internal static string ToCamelCaseIdentifier(string value, string fallback)
     {
         var pascal = ToPascalCase(value);
         if (string.IsNullOrWhiteSpace(pascal))
@@ -49,7 +49,7 @@ public sealed partial class DbusContractSourceGenerator
         return ToSafeIdentifier(builder.ToString(), fallback);
     }
 
-    private static string EnsureAsyncSuffix(string methodName)
+    internal static string EnsureAsyncSuffix(string methodName)
     {
         if (methodName.EndsWith("Async", StringComparison.Ordinal))
         {
@@ -59,7 +59,7 @@ public sealed partial class DbusContractSourceGenerator
         return methodName + "Async";
     }
 
-    private static string ToSafeIdentifier(string value, string fallback)
+    internal static string ToSafeIdentifier(string value, string fallback)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -88,21 +88,21 @@ public sealed partial class DbusContractSourceGenerator
         return builder.ToString();
     }
 
-    private static string EscapeIdentifier(string identifier)
+    internal static string EscapeIdentifier(string identifier)
     {
         return SyntaxFacts.GetKeywordKind(identifier) != SyntaxKind.None
             ? $"@{identifier}"
             : identifier;
     }
 
-    private static string GetHintName(string interfaceName)
+    internal static string GetHintName(string interfaceName)
     {
         var sanitized = new string(interfaceName.Select(static character =>
             char.IsLetterOrDigit(character) ? character : '_').ToArray());
         return $"{sanitized}.DBus.g.cs";
     }
 
-    private static string MakeUniqueIdentifier(string preferredName, ISet<string> usedNames, string fallback)
+    internal static string MakeUniqueIdentifier(string preferredName, ISet<string> usedNames, string fallback)
     {
         var candidate = ToSafeIdentifier(preferredName, fallback);
         if (!usedNames.Contains(candidate))
@@ -125,7 +125,7 @@ public sealed partial class DbusContractSourceGenerator
         }
     }
 
-    private static string BuildIdentifierSuffix(string value, string fallback)
+    internal static string BuildIdentifierSuffix(string value, string fallback)
     {
         var pascal = ToPascalCase(value);
         if (string.IsNullOrWhiteSpace(pascal))
@@ -136,7 +136,7 @@ public sealed partial class DbusContractSourceGenerator
         return ToSafeIdentifier(pascal, fallback);
     }
 
-    private static bool IsDbusXml(string path)
+    internal static bool IsDbusXml(string path)
     {
         if (string.IsNullOrWhiteSpace(path) || !path.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
         {
@@ -147,7 +147,7 @@ public sealed partial class DbusContractSourceGenerator
         return normalizedPath.Contains("/Dbus/", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsGeneratorConfigurationFile(string path)
+    internal static bool IsGeneratorConfigurationFile(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -155,6 +155,6 @@ public sealed partial class DbusContractSourceGenerator
         }
 
         var normalizedPath = path.Replace('\\', '/');
-        return normalizedPath.EndsWith($"/Dbus/{DefaultConfigurationFileName}", StringComparison.OrdinalIgnoreCase);
+        return normalizedPath.EndsWith($"/Dbus/{DbusGeneratorConstants.DefaultConfigurationFileName}", StringComparison.OrdinalIgnoreCase);
     }
 }

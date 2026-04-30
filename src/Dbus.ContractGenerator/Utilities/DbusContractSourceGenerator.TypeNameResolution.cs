@@ -1,12 +1,14 @@
 
 using System.Collections.Immutable;
 using System.Text;
+using static Dbus.ContractGenerator.DbusGeneratorNaming;
+using static Dbus.ContractGenerator.DbusGeneratorValidation;
 
 namespace Dbus.ContractGenerator;
 
-public sealed partial class DbusContractSourceGenerator
+internal static class DbusInterfaceTypeNameResolver
 {
-    private static ImmutableArray<DbusInterfaceModel> ResolveUniqueTypeNames(
+    internal static ImmutableArray<DbusInterfaceModel> ResolveUniqueTypeNames(
         IEnumerable<DbusInterfaceModel> interfaceModels,
         TypeNamingStrategy namingStrategy)
     {

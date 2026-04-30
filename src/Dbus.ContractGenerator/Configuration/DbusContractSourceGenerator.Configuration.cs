@@ -3,12 +3,14 @@ using System.Collections.Immutable;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
+using static Dbus.ContractGenerator.DbusGeneratorConstants;
+using static Dbus.ContractGenerator.DbusGeneratorValidation;
 
 namespace Dbus.ContractGenerator;
 
-public sealed partial class DbusContractSourceGenerator
+internal static class DbusGeneratorConfigurationReader
 {
-    private static GeneratorConfiguration BuildGeneratorConfiguration(
+    internal static GeneratorConfiguration BuildGeneratorConfiguration(
         SourceProductionContext context,
         ImmutableArray<DbusGeneratorConfigurationFile> configurationFiles)
     {

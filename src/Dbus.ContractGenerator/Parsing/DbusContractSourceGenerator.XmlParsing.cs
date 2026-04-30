@@ -5,18 +5,13 @@ using System.Xml;
 using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using static Dbus.ContractGenerator.DbusGeneratorConstants;
+using static Dbus.ContractGenerator.DbusGeneratorNaming;
 
 namespace Dbus.ContractGenerator;
 
-public sealed partial class DbusContractSourceGenerator
+internal static class DbusXmlContractParser
 {
-    private const string DbusDeprecatedAnnotation = "org.freedesktop.DBus.Deprecated";
-    private const string DbusExperimentalAnnotation = "org.freedesktop.DBus.Experimental";
-    private const string DbusNoReplyAnnotation = "org.freedesktop.DBus.Method.NoReply";
-    private const string QtTypeNameAnnotation = "org.qtproject.QtDBus.QtTypeName";
-    private const string QtTypeNameInPrefix = "org.qtproject.QtDBus.QtTypeName.In";
-    private const string QtTypeNameOutPrefix = "org.qtproject.QtDBus.QtTypeName.Out";
-
     private static readonly ImmutableHashSet<string> KnownBooleanAnnotations =
     [
         DbusDeprecatedAnnotation,
@@ -30,7 +25,7 @@ public sealed partial class DbusContractSourceGenerator
         "org.freedesktop.DBus.Signal.Experimental"
     ];
 
-    private static ImmutableArray<DbusInterfaceModel> ParseXmlFile(
+    internal static ImmutableArray<DbusInterfaceModel> ParseXmlFile(
         SourceProductionContext context,
         DbusXmlFile file,
         GeneratorConfiguration configuration)
@@ -1067,7 +1062,7 @@ public sealed partial class DbusContractSourceGenerator
         return selectedMembers.ToImmutable();
     }
 
-    private static string BuildInterfaceFingerprint(
+    internal static string BuildInterfaceFingerprint(
         string interfaceName,
         ImmutableArray<DbusMethodModel> methods,
         ImmutableArray<DbusPropertyModel> properties,
