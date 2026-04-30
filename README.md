@@ -185,11 +185,17 @@ When the same D-Bus interface is discovered in multiple XML files:
 | Primitive | `h` | Full | `CloseSafeHandle` |  |
 | Primitive | `v` | Full | `object` |  |
 | Array | `aT` | Full | `T[]` | `T` must be supported type. |
-| Dictionary | `a{KV}` | Full | `IDictionary<K,V>` | `K`, `V` must be supported types. |
+| Dictionary | `a{KV}` | Full | `IDictionary<K,V>` | `K` must be a basic non-variant key type; `V` must be supported type. |
 | Struct | `(T1...Tn)` (`n>=2`) | Full | `(T1, ..., Tn)` | Named tuple elements generated deterministically. |
 | Struct | `(T)` (`n=1`) | Full | `System.ValueTuple<T>` | Explicit single-element tuple handling. |
 | Struct | `()` (`n=0`) | Full | `System.ValueTuple` |  |
 | Unsupported token | any other token | Rejected | N/A | Reports `DBCG002`. |
+
+Signature validation limits:
+- Maximum signature length is 255 characters.
+- Maximum array nesting depth is 32.
+- Maximum struct nesting depth is 32.
+- Invalid dictionary keys report `DBCG002`.
 
 ### Qt Type Hint Compatibility
 

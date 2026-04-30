@@ -240,6 +240,30 @@ public sealed partial class DbusContractSourceGeneratorTests
     }
 
     [Fact]
+    public void Generate_WithStringLiteralCharactersInMetadata_EscapesGeneratedLiterals()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.Quoted.xml"] =
+                """
+                <node name="/org/example/&quot;root\path">
+                  <interface name="org.example.Quoted&quot;Interface">
+                    <property name="Display&quot;\Name" type="s" access="readwrite"/>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        AssertNoErrors(result.Diagnostics);
+        Assert.Contains("[DbusInterface(\"org.example.Quoted\\\"Interface\")]", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("DefaultObjectPath { get; } = \"/org/example/\\\"root\\\\path\";", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("GetAsync<string>(\"Display\\\"\\\\Name\")", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("SetAsync(\"Display\\\"\\\\Name\", val)", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generate_WithAnnotations_AppliesNoReplyQtHintsAndStabilityAttributes()
     {
         var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -707,6 +731,89 @@ public sealed partial class DbusContractSourceGeneratorTests
 
         AssertNoErrors(result.Diagnostics.Where(static item => item.Id is not "DBCG010" and not "DBCG011"));
         Assert.Contains("Task EchoAsync(System.ValueTuple<string> value);", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_WithDictionaryContainerKey_ReportsSignatureDiagnostic()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.InvalidDictKey.xml"] =
+                """
+                <node>
+                  <interface name="org.example.InvalidDictKey">
+                    <method name="Read">
+                      <arg direction="out" name="value" type="a{asv}" />
+                    </method>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        Assert.Contains(
+            result.Diagnostics,
+            static diagnostic =>
+                diagnostic.Id == "DBCG002" &&
+                diagnostic.Severity == DiagnosticSeverity.Error &&
+                diagnostic.GetMessage().Contains("Dictionary entry key type", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Generate_WithExcessiveArrayNesting_ReportsSignatureDiagnostic()
+    {
+        var tooDeepSignature = new string('a', 33) + "s";
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.DeepArray.xml"] =
+                $"""
+                <node>
+                  <interface name="org.example.DeepArray">
+                    <method name="Read">
+                      <arg direction="out" name="value" type="{tooDeepSignature}" />
+                    </method>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        Assert.Contains(
+            result.Diagnostics,
+            static diagnostic =>
+                diagnostic.Id == "DBCG002" &&
+                diagnostic.Severity == DiagnosticSeverity.Error &&
+                diagnostic.GetMessage().Contains("Array nesting depth", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Generate_WithOverlongSignature_ReportsSignatureDiagnostic()
+    {
+        var tooLongSignature = new string('s', 256);
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.LongSignature.xml"] =
+                $"""
+                <node>
+                  <interface name="org.example.LongSignature">
+                    <method name="Read">
+                      <arg direction="out" name="value" type="{tooLongSignature}" />
+                    </method>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        Assert.Contains(
+            result.Diagnostics,
+            static diagnostic =>
+                diagnostic.Id == "DBCG002" &&
+                diagnostic.Severity == DiagnosticSeverity.Error &&
+                diagnostic.GetMessage().Contains("exceeds the D-Bus maximum", StringComparison.Ordinal));
     }
 
     [Theory]

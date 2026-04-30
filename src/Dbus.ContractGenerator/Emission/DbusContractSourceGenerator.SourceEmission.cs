@@ -25,9 +25,9 @@ internal static class DbusSourceEmitter
         builder.AppendLine(";");
         builder.AppendLine();
         WriteMemberStabilityAttributes(builder, model.Annotations, "interface");
-        builder.Append("[DbusInterface(\"");
-        builder.Append(model.InterfaceName);
-        builder.AppendLine("\")]");
+        builder.Append("[DbusInterface(");
+        AppendCSharpStringLiteral(builder, model.InterfaceName);
+        builder.AppendLine(")]");
         builder.Append("public interface ");
         builder.Append(model.InterfaceTypeName);
         builder.AppendLine(" : IDbusObject");
@@ -106,9 +106,9 @@ internal static class DbusSourceEmitter
         builder.AppendLine();
         builder.AppendLine("{");
         var defaultObjectPath = model.ObjectPaths.Length == 0 ? "/" : model.ObjectPaths[0];
-        builder.Append("    public static string DefaultObjectPath { get; } = \"");
-        builder.Append(defaultObjectPath);
-        builder.AppendLine("\";");
+        builder.Append("    public static string DefaultObjectPath { get; } = ");
+        AppendCSharpStringLiteral(builder, defaultObjectPath);
+        builder.AppendLine(";");
         builder.Append("    public static string[] KnownObjectPaths { get; } = new[] { ");
         for (var pathIndex = 0; pathIndex < model.ObjectPaths.Length; pathIndex++)
         {
@@ -117,9 +117,7 @@ internal static class DbusSourceEmitter
                 builder.Append(", ");
             }
 
-            builder.Append('"');
-            builder.Append(model.ObjectPaths[pathIndex]);
-            builder.Append('"');
+            AppendCSharpStringLiteral(builder, model.ObjectPaths[pathIndex]);
         }
 
         builder.AppendLine(" };");
@@ -154,9 +152,9 @@ internal static class DbusSourceEmitter
                 builder.Append(EscapeIdentifier(getAsyncMethodName));
                 builder.Append("<");
                 builder.Append(propertyType);
-                builder.Append(">(\"");
-                builder.Append(property.Name);
-                builder.AppendLine("\");");
+                builder.Append(">(");
+                AppendCSharpStringLiteral(builder, property.Name);
+                builder.AppendLine(");");
                 builder.AppendLine("    }");
             }
 
@@ -183,9 +181,9 @@ internal static class DbusSourceEmitter
                 builder.AppendLine("        ArgumentNullException.ThrowIfNull(o);");
                 builder.Append("        return o.");
                 builder.Append(EscapeIdentifier(setAsyncMethodName));
-                builder.Append("(\"");
-                builder.Append(property.Name);
-                builder.AppendLine("\", val);");
+                builder.Append("(");
+                AppendCSharpStringLiteral(builder, property.Name);
+                builder.AppendLine(", val);");
                 builder.AppendLine("    }");
             }
 
@@ -194,6 +192,71 @@ internal static class DbusSourceEmitter
 
         builder.AppendLine("}");
         return builder.ToString();
+    }
+
+    private static void AppendCSharpStringLiteral(StringBuilder builder, string value)
+    {
+        builder.Append('"');
+        foreach (var character in value)
+        {
+            switch (character)
+            {
+                case '\\':
+                    builder.Append(@"\\");
+                    break;
+
+                case '"':
+                    builder.Append("\\\"");
+                    break;
+
+                case '\0':
+                    builder.Append(@"\0");
+                    break;
+
+                case '\a':
+                    builder.Append(@"\a");
+                    break;
+
+                case '\b':
+                    builder.Append(@"\b");
+                    break;
+
+                case '\f':
+                    builder.Append(@"\f");
+                    break;
+
+                case '\n':
+                    builder.Append(@"\n");
+                    break;
+
+                case '\r':
+                    builder.Append(@"\r");
+                    break;
+
+                case '\t':
+                    builder.Append(@"\t");
+                    break;
+
+                case '\v':
+                    builder.Append(@"\v");
+                    break;
+
+                default:
+                    if (char.IsControl(character))
+                    {
+                        builder.Append(@"\u");
+                        builder.Append(((int)character).ToString("x4"));
+                    }
+                    else
+                    {
+                        builder.Append(character);
+                    }
+
+                    break;
+            }
+        }
+
+        builder.Append('"');
     }
 
     private static void WriteMemberStabilityAttributes(
