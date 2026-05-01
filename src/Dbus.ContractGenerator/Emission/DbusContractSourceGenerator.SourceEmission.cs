@@ -28,6 +28,9 @@ internal static class DbusSourceEmitter
         builder.Append("[DbusInterface(");
         AppendCSharpStringLiteral(builder, model.InterfaceName);
         builder.AppendLine(")]");
+        builder.Append("[DbusProperties(typeof(");
+        builder.Append(model.PropertyTypeName);
+        builder.AppendLine("))]");
         builder.Append("public interface ");
         builder.Append(model.InterfaceTypeName);
         builder.AppendLine(" : IDbusObject");
@@ -48,6 +51,7 @@ internal static class DbusSourceEmitter
                 usedInterfaceMemberNames,
                 usedParameterSignaturesByName);
             WriteMemberStabilityAttributes(builder, method.Annotations, "method", "    ");
+            WriteDbusMethodAttribute(builder, method, "    ");
             builder.Append("    ");
             builder.Append(FormatMethodSignature(method, methodName, qtTypeHintMappings));
             builder.AppendLine(";");
@@ -61,6 +65,7 @@ internal static class DbusSourceEmitter
                 usedInterfaceMemberNames,
                 usedParameterSignaturesByName);
             WriteMemberStabilityAttributes(builder, signal.Annotations, "signal", "    ");
+            WriteDbusSignalAttribute(builder, signal, "    ");
             builder.Append("    ");
             builder.Append(FormatSignalWatcherSignature(signal, signalWatcherName, qtTypeHintMappings));
             builder.AppendLine(";");
@@ -95,6 +100,11 @@ internal static class DbusSourceEmitter
                 usedPropertyNames,
                 "Property");
             WriteMemberStabilityAttributes(builder, property.Annotations, "property", "    ");
+            builder.Append("    [DbusProperty(");
+            AppendCSharpStringLiteral(builder, property.Name);
+            builder.Append(", ");
+            AppendCSharpStringLiteral(builder, property.Signature);
+            builder.AppendLine(")]");
             builder.Append("    public ");
             builder.Append(FormatType(property.Type, property.QtTypeHint, qtTypeHintMappings));
             builder.Append(' ');
@@ -326,6 +336,30 @@ internal static class DbusSourceEmitter
             builder.Append(memberKind);
             builder.AppendLine(" is marked as experimental.\")]");
         }
+    }
+
+    private static void WriteDbusMethodAttribute(StringBuilder builder, DbusMethodModel method, string indent)
+    {
+        builder.Append(indent);
+        builder.Append("[DbusMethod(");
+        AppendCSharpStringLiteral(builder, method.Name);
+        builder.Append(", ");
+        AppendCSharpStringLiteral(builder, string.Concat(method.InArguments.Select(static argument => argument.Signature)));
+        builder.Append(", ");
+        AppendCSharpStringLiteral(builder, string.Concat(method.OutArguments.Select(static argument => argument.Signature)));
+        builder.Append(", ");
+        builder.Append(method.NoReply ? "true" : "false");
+        builder.AppendLine(")]");
+    }
+
+    private static void WriteDbusSignalAttribute(StringBuilder builder, DbusSignalModel signal, string indent)
+    {
+        builder.Append(indent);
+        builder.Append("[DbusSignal(");
+        AppendCSharpStringLiteral(builder, signal.Name);
+        builder.Append(", ");
+        AppendCSharpStringLiteral(builder, string.Concat(signal.Arguments.Select(static argument => argument.Signature)));
+        builder.AppendLine(")]");
     }
 
     private static string FormatMethodSignature(

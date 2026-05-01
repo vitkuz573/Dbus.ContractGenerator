@@ -8,9 +8,11 @@ using Dbus.Contracts;
 namespace GeneratorHarness.Generated;
 
 [DbusInterface("org.example.Annotated")]
+[DbusProperties(typeof(DbIAnnotatedContractProperties))]
 public interface DbIAnnotatedContract : IDbusObject
 {
     [Obsolete("D-Bus method is marked as deprecated.")]
+    [DbusMethod("Execute", "u", "", true)]
     Task ExecuteAsync(ulong target);
     Task<T> GetAsync<T>(string prop);
     Task<DbIAnnotatedContractProperties> GetAllAsync();
@@ -21,6 +23,7 @@ public interface DbIAnnotatedContract : IDbusObject
 [DbusDictionary]
 public class DbIAnnotatedContractProperties
 {
+    [DbusProperty("Items", "as")]
     public string[] Items { get; set; } = default!;
 }
 

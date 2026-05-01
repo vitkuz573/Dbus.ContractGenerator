@@ -8,8 +8,10 @@ using Dbus.Contracts;
 namespace GeneratorHarness.Generated;
 
 [DbusInterface("org.example.Corpus")]
+[DbusProperties(typeof(CorpusProperties))]
 public interface ICorpus : IDbusObject
 {
+    [DbusMethod("Ping", "", "", false)]
     Task PingAsync();
     Task<T> GetAsync<T>(string prop);
     Task<CorpusProperties> GetAllAsync();

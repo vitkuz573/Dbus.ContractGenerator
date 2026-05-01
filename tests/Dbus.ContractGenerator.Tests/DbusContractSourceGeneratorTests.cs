@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
+using Dbus.Contracts;
 using Dbus.ContractGenerator;
 
 namespace Dbus.ContractGenerator.Tests;
@@ -41,6 +42,30 @@ public sealed partial class DbusContractSourceGeneratorTests
         Assert.Contains("WatchPopAsync", result.GeneratedSourceText, StringComparison.Ordinal);
         Assert.Contains("WatchPushAsync", result.GeneratedSourceText, StringComparison.Ordinal);
         Assert.Contains("WatchUnlockAsync", result.GeneratedSourceText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_WithDbusXml_EmitsRuntimeMetadata()
+    {
+        var xmlFiles = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["org.example.Runtime.xml"] =
+                """
+                <node>
+                  <interface name="org.example.Runtime">
+                    <method name="Ping"/>
+                  </interface>
+                </node>
+                """
+        };
+
+        var result = RunGenerator(xmlFiles);
+
+        AssertNoErrors(result.Diagnostics);
+        Assert.Empty(result.RuntimeSourceText);
+        Assert.Contains("[DbusInterface(\"org.example.Runtime\")]", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("[DbusProperties(typeof(RuntimeProperties))]", result.GeneratedSourceText, StringComparison.Ordinal);
+        Assert.Contains("[DbusMethod(\"Ping\", \"\", \"\", false)]", result.GeneratedSourceText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1640,14 +1665,13 @@ public sealed partial class DbusContractSourceGeneratorTests
         var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
         var syntaxTrees = new[]
         {
-            CSharpSyntaxTree.ParseText("namespace GeneratorHarness; public sealed class Marker { }", parseOptions),
-            CSharpSyntaxTree.ParseText(GetDbusStubs(), parseOptions)
+            CSharpSyntaxTree.ParseText("namespace GeneratorHarness; public sealed class Marker { }", parseOptions)
         };
 
         var compilation = CSharpCompilation.Create(
             assemblyName: "GeneratorHarness",
             syntaxTrees: syntaxTrees,
-            references: GetTrustedPlatformMetadataReferences(),
+            references: GetTrustedPlatformMetadataReferences().Add(MetadataReference.CreateFromFile(typeof(DbusConnection).Assembly.Location)),
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var additionalTexts = new List<AdditionalText>();
@@ -1671,13 +1695,21 @@ public sealed partial class DbusContractSourceGeneratorTests
                 .Concat(generatorDiagnostics)
                 .Concat(runResult.Diagnostics));
 
+        var generatedSources = runResult.Results
+            .SelectMany(static result => result.GeneratedSources)
+            .ToArray();
         var sourceText = string.Join(
             Environment.NewLine,
-            runResult.Results
-                .SelectMany(static result => result.GeneratedSources)
+            generatedSources
+                .Where(static source => !string.Equals(source.HintName, "Dbus.Contracts.Runtime.g.cs", StringComparison.Ordinal))
+                .Select(static source => source.SourceText.ToString()));
+        var runtimeSourceText = string.Join(
+            Environment.NewLine,
+            generatedSources
+                .Where(static source => string.Equals(source.HintName, "Dbus.Contracts.Runtime.g.cs", StringComparison.Ordinal))
                 .Select(static source => source.SourceText.ToString()));
 
-        return new GeneratorExecutionResult(allDiagnostics, sourceText);
+        return new GeneratorExecutionResult(allDiagnostics, sourceText, runtimeSourceText);
     }
 
     private static string GetDefaultConfigurationJson()
@@ -1704,43 +1736,6 @@ public sealed partial class DbusContractSourceGeneratorTests
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             .Select(static path => (MetadataReference)MetadataReference.CreateFromFile(path))
             .ToImmutableArray();
-    }
-
-    private static string GetDbusStubs()
-    {
-        return
-            """
-            using System;
-            namespace Dbus.Contracts
-            {
-                [AttributeUsage(AttributeTargets.Interface)]
-                public sealed class DbusInterfaceAttribute : Attribute
-                {
-                    public DbusInterfaceAttribute(string interfaceName) { }
-                }
-
-                [AttributeUsage(AttributeTargets.Class)]
-                public sealed class DbusDictionaryAttribute : Attribute
-                {
-                }
-
-                public interface IDbusObject
-                {
-                }
-
-                public readonly struct DbusObjectPath
-                {
-                }
-
-                public sealed class CloseSafeHandle
-                {
-                }
-
-                public sealed class DbusPropertyChanges
-                {
-                }
-            }
-            """;
     }
 
     private sealed class InMemoryAdditionalText(string path, string content) : AdditionalText
@@ -1841,5 +1836,6 @@ public sealed partial class DbusContractSourceGeneratorTests
 
     private sealed record GeneratorExecutionResult(
         ImmutableArray<Diagnostic> Diagnostics,
-        string GeneratedSourceText);
+        string GeneratedSourceText,
+        string RuntimeSourceText);
 }

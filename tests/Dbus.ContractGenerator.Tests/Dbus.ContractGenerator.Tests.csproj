@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Dbus.Contracts\Dbus.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Dbus.ContractGenerator\Dbus.ContractGenerator.csproj" />
   </ItemGroup>
 
