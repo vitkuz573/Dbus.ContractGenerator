@@ -7,6 +7,10 @@ internal static unsafe class UnixSocketInterop
 {
     private const int SOL_SOCKET = 1;
     private const int SCM_RIGHTS = 1;
+    private const int InterruptedError = 4;
+    private const int TryAgainError = 11;
+    private const int WouldBlockError = 35;
+    private const int RetryPollTimeoutMicroseconds = 100_000;
 
     public static int Send(Socket socket, byte[] payload, int[] fileDescriptors)
     {
@@ -49,18 +53,27 @@ internal static unsafe class UnixSocketInterop
                 ControlLength = (UIntPtr)controlLength
             };
 
-            var sent = sendmsg((int)socket.Handle, &message, 0);
-            if (sent < 0)
+            while (true)
             {
-                throw new SocketException(Marshal.GetLastPInvokeError());
-            }
+                var sent = sendmsg((int)socket.Handle, &message, 0);
+                if (sent < 0)
+                {
+                    var error = Marshal.GetLastPInvokeError();
+                    if (ShouldRetryNativeOperation(socket, error, SelectMode.SelectWrite))
+                    {
+                        continue;
+                    }
 
-            if (sent != payload.Length)
-            {
-                throw new DbusException("D-Bus unix-fd message was only partially sent.");
-            }
+                    throw new SocketException(error);
+                }
 
-            return sent;
+                if (sent != payload.Length)
+                {
+                    throw new DbusException("D-Bus unix-fd message was only partially sent.");
+                }
+
+                return sent;
+            }
         }
     }
 
@@ -78,23 +91,53 @@ internal static unsafe class UnixSocketInterop
             var control = stackalloc byte[controlLength];
             new Span<byte>(control, controlLength).Clear();
 
-            var message = new Msghdr
+            while (true)
             {
-                Iov = (IntPtr)(&iov),
-                IovLength = (UIntPtr)1,
-                Control = (IntPtr)control,
-                ControlLength = (UIntPtr)controlLength
-            };
+                new Span<byte>(control, controlLength).Clear();
 
-            var received = recvmsg((int)socket.Handle, &message, 0);
-            if (received < 0)
-            {
-                throw new SocketException(Marshal.GetLastPInvokeError());
+                var message = new Msghdr
+                {
+                    Iov = (IntPtr)(&iov),
+                    IovLength = (UIntPtr)1,
+                    Control = (IntPtr)control,
+                    ControlLength = (UIntPtr)controlLength
+                };
+
+                var received = recvmsg((int)socket.Handle, &message, 0);
+                if (received < 0)
+                {
+                    var error = Marshal.GetLastPInvokeError();
+                    if (ShouldRetryNativeOperation(socket, error, SelectMode.SelectRead))
+                    {
+                        continue;
+                    }
+
+                    throw new SocketException(error);
+                }
+
+                var descriptors = ReadFileDescriptors(control, (int)message.ControlLength);
+                return (received, descriptors);
             }
-
-            var descriptors = ReadFileDescriptors(control, (int)message.ControlLength);
-            return (received, descriptors);
         }
+    }
+
+    private static bool ShouldRetryNativeOperation(Socket socket, int error, SelectMode mode)
+    {
+        if (error == InterruptedError)
+        {
+            return true;
+        }
+
+        if (error is not TryAgainError and not WouldBlockError)
+        {
+            return false;
+        }
+
+        while (!socket.Poll(RetryPollTimeoutMicroseconds, mode))
+        {
+        }
+
+        return true;
     }
 
     private static int[] ReadFileDescriptors(byte* control, int controlLength)

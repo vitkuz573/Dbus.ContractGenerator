@@ -36,6 +36,7 @@ public sealed class DbusConnection : IAsyncDisposable, IDisposable
         var endpoint = ResolveEndpoint(busKind);
         var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
         await socket.ConnectAsync(endpoint, cancellationToken);
+        socket.Blocking = true;
 
         var connection = new DbusConnection(socket);
         await connection.AuthenticateAsync(cancellationToken);
@@ -609,7 +610,7 @@ public sealed class DbusConnection : IAsyncDisposable, IDisposable
     }
 }
 
-internal sealed class DbusDispatchProxy : DispatchProxy
+internal class DbusDispatchProxy : DispatchProxy
 {
     private DbusConnection _connection = null!;
     private Type _interfaceType = null!;
